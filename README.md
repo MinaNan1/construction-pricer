@@ -33,6 +33,28 @@ A contractor uploads a tender's bill of quantities (مقايسة), in Excel or P
 
 The AI runs on the free tier, so the cost per bill is 0 EGP.
 
+### Robustness test: 5 real tenders the agent had never seen (`test_tenders.py`, `review_tenders.py`)
+
+The set was 2 English UNDP bills (a steel warehouse, 40 flats) and 3 Arabic Suez Canal Zone booklets (a pier, 45 pages of port maintenance, piles and foundations): **505 lines, 7–45 bill pages each.**
+
+| | Result |
+|---|---|
+| Reading | Every quantity was checked against the PDF's own text: **505/505 read with the right unit and quantity**. The only extra lines were a few items the text-layer check itself missed. |
+| Priced outright | **16 lines, 16 correct** |
+| Priced but marked "check" | 43 lines: 40 right, 3 rough (e.g. damp-proof course → waterproofing) |
+| Asked | 446: 404 work not in the 39-item price list (tiles, doors, electrical, plumbing…), 22 lump sums, the rest unclear |
+
+Problems the test found, all now fixed:
+1. With 5 pages per request the model silently skipped pages (50 of 105 lines). It now reads 2 pages per request.
+2. Bills longer than 15 pages were cut off, and continuation pages without a header were missed. Pages now keep being read while they still look like bill lines.
+3. "30,000" was sometimes read as 30. Quantities are now copied as printed, parsed by code, and checked against the PDF text; if one isn't found, the line is flagged and never priced as certain. Right-to-left PDFs that store Arabic digits backwards are handled.
+4. Demolition and sand backfill were priced as excavation (3 wrong prices). A line is now only matched automatically to an item of the same kind of work (excavation / backfill / demolition / repair, taken from its first verb).
+5. A summary page listing section names was read as items. Lines with no quantity are dropped.
+6. Repeated item numbers broke the questions. Line keys are now unique.
+7. Rebar per kg/ton and general metal works per kg had no item. Added CW-26 and MW-07, built from existing rates and marked for the reviewer.
+
+**Honest limit:** accuracy is high where the price list covers the work, but a 39-item list covers only about 12% of a typical tender's lines. The rest comes back as questions, and every answer is remembered.
+
 ## Run it
 
 ```
