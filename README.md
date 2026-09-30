@@ -10,7 +10,8 @@ A contractor uploads a tender's bill of quantities (مقايسة), in Excel or P
 4. **Uses AI only for unclear lines.** A small model (Gemini Flash-Lite, with Groq as backup) picks **one of the 5 closest price-list items or "none"**. It never writes a price. Picks outside the options are ignored, and backup-model picks are always marked for checking.
 5. **Leaves the rest to the owner.** Anything uncertain becomes a question with one-click choices or a price box.
 6. **Remembers every answer,** so the next bill asks fewer questions.
-7. **Updates prices from typed text,** e.g. "حديد التسليح بقى 42 ألف". The agent maps the message to the right input, asks for confirmation, and every dependent item is re-priced. The approved price-list workbook is never modified; changes go to a log.
+7. **Looks up missing prices online, on request.** For work that isn't in the price list, one click searches the web (a free search engine, then the small model reads only the price sentences of the top pages). It shows a low–high range, what the price covers and the source links. Numbers not found in the sources are thrown away. It is only a suggestion: the owner accepts it or types their own.
+8. **Updates prices from typed text,** e.g. "حديد التسليح بقى 42 ألف". The agent maps the message to the right input, asks for confirmation, and every dependent item is re-priced. The approved price-list workbook is never modified; changes go to a log.
 
 ## The five components
 

@@ -10,6 +10,7 @@ from boq_agent.units import factor
 from boq_agent.writer import write_priced_bill
 from boq_agent.ai import Resolver, read_price_change
 from boq_agent.pdf_reader import read_pdf_bill, write_bill_xlsx
+from boq_agent.research import research_price
 
 PRICE_LIST = "Price list - steel and metal works.xlsx"
 os.makedirs("data/uploads", exist_ok=True)
@@ -47,6 +48,16 @@ T = {
     "which": ("Which item is it?", "البند ده أنهي واحد؟"),
     "own": ("My own cost per unit (before margin)", "تكلفتي أنا للوحدة (قبل الهامش)"),
     "lump": ("Your price for this lump sum (before margin)", "سعرك للمقطوعية دي (قبل الهامش)"),
+    "research": ("🔎 Look up a price online", "🔎 دوّر على سعر أونلاين"),
+    "researching": ("Searching the web and reading the price pages (about 20-40 seconds)...",
+                    "بدوّر على النت وبقرا صفحات الأسعار (حوالي 20-40 ثانية)..."),
+    "research_none": ("I couldn't find a price I can trust online for this. Please enter yours.",
+                      "ملقتش سعر أقدر أثق فيه على النت للبند ده. دخّل سعرك."),
+    "research_found": ("Found online: **{low:,.0f} to {high:,.0f} EGP per {unit}** (typical {typical:,.0f}). Covers: {includes}.",
+                       "لقيت على النت: **من {low:,.0f} لـ {high:,.0f} جنيه لكل {unit}** (المعتاد {typical:,.0f}). بيشمل: {includes}."),
+    "use_research": ("Use {p:,.0f} as my cost", "استخدم {p:,.0f} كتكلفتي"),
+    "research_unit": ("These prices are per {unit}, not the bill's unit, so I can't use them directly.",
+                      "الأسعار دي لكل {unit} مش بوحدة البند، فمينفعش أستخدمها على طول."),
     "save": ("Save answer", "احفظ الرد"),
     "cant": ("units don't fit", "الوحدة مش مناسبة"),
     "download": ("Download the priced bill", "نزّل المقايسة المسعّرة"),
@@ -189,6 +200,26 @@ if out:
             st.write(r["desc"])
             for n in r["notes"]:
                 st.caption(n[st.session_state.lang])
+            if r["status"] == ASK and r["unit_used"] != "ls":
+                found_all = st.session_state.setdefault("research", {})
+                if st.button(t("research"), key="r" + r["key"]):
+                    with st.spinner(t("researching")):
+                        found_all[r["key"]] = research_price(r, Resolver()) or {"none": True}
+                found = found_all.get(r["key"])
+                if found and found.get("none"):
+                    st.info(t("research_none"))
+                elif found:
+                    st.info(t("research_found", low=found["low"], high=found["high"], typical=found["typical"],
+                              unit=found["unit"], includes=found["includes"]) + "  \n" + found["note_" + st.session_state.lang])
+                    for src in found["sources"][:4]:
+                        st.markdown("- [%s](%s)" % (src["title"][:80].replace("[", "").replace("]", ""), src["url"]))
+                    if found["unit_ok"]:
+                        if st.button(t("use_research", p=found["typical"]), key="u" + r["key"]):
+                            answer(out, r["key"], pb, mem, cost=found["typical"],
+                                   source="Web research, accepted by you: " + ", ".join(s["url"] for s in found["sources"][:2]))
+                            st.rerun()
+                    else:
+                        st.warning(t("research_unit", unit=found["unit"]))
             opts, codes = [], []
             if r["unit_used"] != "ls":
                 for c in r["candidates"]:

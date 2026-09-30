@@ -1,3 +1,4 @@
+ddgs==9.16.0
 google-genai==2.25.0
 groq==1.7.0
 openpyxl==3.0.10
@@ -6,4 +7,5 @@ pycel==1.0b30
 pymupdf==1.28.2
 python-dotenv==1.2.3
 RapidFuzz==3.14.6
+requests==2.34.2
 streamlit==1.64.0

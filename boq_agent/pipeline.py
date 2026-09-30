@@ -156,7 +156,7 @@ def _ai_step(unclear, pricebook, uplift, resolver):
                 r["status"] = CHECK
 
 
-def answer(out, key, pricebook, memory=None, code=None, cost=None):
+def answer(out, key, pricebook, memory=None, code=None, cost=None, source=None):
     """Apply the owner's answer to one line (a price-list item or their own cost per unit) and remember it."""
     res = next(r for r in out["results"] if r["key"] == key)
     uplift = _uplift(out["margin"], out["vat"])
@@ -165,7 +165,7 @@ def answer(out, key, pricebook, memory=None, code=None, cost=None):
         if not price_from_code(res, code, pricebook, uplift, "Your choice: %s" % pricebook.source(code), PRICED):
             return False
     else:
-        price_from_owner(res, float(cost), uplift, "Your price")
+        price_from_owner(res, float(cost), uplift, source or "Your price")
     if memory:
         memory.remember(res["desc"], res["unit_used"], code=code, price=None if code else float(cost))
     out["summary"] = summarize(out["results"], out["margin"], out["vat"], out.get("resolver"))
