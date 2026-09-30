@@ -52,6 +52,8 @@ def summarize(results, margin, add_vat, ai=None):
         "ask": sum(r["status"] == ASK for r in results),
         "remembered": sum(r["source"].startswith("Your") for r in results),
         "by_ai": sum(r["source"].startswith("AI") for r in results),
+        "not_in_list": sum(r["status"] == ASK and has_note(r, "not_in_list") for r in results),
+        "lump": sum(r["status"] == ASK and has_note(r, "lump") for r in results),
         "total_priced": round(sum(r["total"] or 0 for r in results if r["status"] != ASK), 2),
         "margin": margin, "vat": add_vat,
         "ai_calls": 0, "ai_tokens": 0, "ai_model": "", "ai_errors": [],
@@ -101,7 +103,7 @@ def price_bill(path, pricebook, margin=0.0, add_vat=False, matcher=None, memory=
     if unclear and resolver and resolver.available():
         _ai_step(unclear, pricebook, uplift, resolver)
     for r in results:
-        if r["status"] == ASK and r["candidates"] and not has_note(r, "ai"):
+        if r["status"] == ASK and r["candidates"] and not has_note(r, "ai") and not has_note(r, "not_in_list"):
             note(r, "unsure", "Not sure which price-list item this is. Closest: %s."
                  % ", ".join(c["code"] for c in r["candidates"][:3]),
                  "مش متأكد البند ده أنهي بند في قائمة الأسعار. الأقرب: %s." % "، ".join(c["code"] for c in r["candidates"][:3]))
@@ -139,6 +141,10 @@ def _ai_step(unclear, pricebook, uplift, resolver):
         if a.get("choice") not in valid | {"none", "", None}:
             note(r, "ai", "The AI answered %s, which was not one of the options, so I ignored it." % a.get("choice"),
                  "الذكاء الاصطناعي اختار %s وده مش من الاختيارات، فتجاهلته." % a.get("choice"))
+            continue
+        if not choice:
+            note(r, "not_in_list", "Not in your price list yet: %s" % a.get("reason_en", ""),
+                 "مش موجود في قائمة أسعارك لسه: %s" % a.get("reason_ar", ""))
             continue
         note(r, "ai", "AI: %s" % a.get("reason_en", ""), "الذكاء الاصطناعي: %s" % a.get("reason_ar", ""))
         if choice and a.get("confidence") in ("high", "medium") and not has_note(r, "conflict"):

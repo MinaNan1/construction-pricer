@@ -36,6 +36,10 @@ T = {
     "by_ai": (" ({n} chosen by the AI)", " ({n} اختارهم الذكاء الاصطناعي)"),
     "check_txt": ("{n} are priced but please check them. ", "{n} متسعّرين بس راجعهم. "),
     "ask_txt": ("**Still open: {n}** - see below.", "**فاضل {n}** محتاجين ردك - تحت."),
+    "why_open": ("Of those, {nl} are work that isn't in your price list yet{eg} and {ls} are lump sums. "
+                 "I don't guess prices. Give me your price once and I'll remember it for the next bill.",
+                 "منهم {nl} شغل مش موجود في قائمة أسعارك لسه{eg} و{ls} مقطوعية. "
+                 "أنا مش بخمّن أسعار. قولّي سعرك مرة واحدة وهفتكره في المقايسة الجاية."),
     "all_done": ("Everything is priced. Download your file below.", "كل البنود اتسعّرت. نزّل الملف تحت."),
     "total": ("Total of priced lines", "إجمالي البنود المسعّرة"),
     "time": ("Time", "الوقت"), "ai": ("AI calls", "استدعاءات الذكاء الاصطناعي"), "tokens": ("AI tokens", "توكنز الذكاء الاصطناعي"),
@@ -168,6 +172,8 @@ if out:
                           + (t("by_ai", n=s["by_ai"]) if s["by_ai"] else ""),
                           check_txt=t("check_txt", n=s["check"]) if s["check"] else "",
                           ask_txt=t("ask_txt", n=s["ask"]) if s["ask"] else ""))
+            if s["not_in_list"] or s["lump"]:
+                st.write(t("why_open", nl=s["not_in_list"], ls=s["lump"], eg=""))
     c1, c2, c3, c4 = st.columns(4)
     c1.metric(t("total"), "{:,.0f} EGP".format(s["total_priced"]))
     c2.metric(t("time"), "%.1f s" % st.session_state.get("seconds", 0))
