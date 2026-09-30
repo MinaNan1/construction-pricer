@@ -11,6 +11,7 @@ _ROLES = {
     "qty": ["الكميه", "كميه", "qty", "quantity"],
     "rate": ["الفئه", "فئه", "سعر الوحده", "السعر", "unit price", "rate", "price"],
     "total": ["الاجمالي", "اجمالي", "الاجمالى", "القيمه", "total", "amount"],
+    "remark": ["ملاحظه القراءه", "reading note"],
 }
 _TOTAL_WORDS = ("الاجمالي", "اجمالي", "المجموع", "total", "grand total", "subtotal")
 _ROLES = {role: [normalize(w) for w in words] for role, words in _ROLES.items()}   # same cleanup as the cells
@@ -65,7 +66,7 @@ def read_bill(path, sheet=None):
     wb = openpyxl.load_workbook(path)
     ws = wb[sheet] if sheet else wb.worksheets[0]
     header_row, cols = find_header(ws)
-    lines, section, sec_i = [], "", 0
+    lines, section, sec_i, keys = [], "", 0, set()
     for r in range(header_row + 1, ws.max_row + 1):
         get = lambda role: ws.cell(r, cols[role]).value if role in cols else None
         desc = get("desc")
@@ -81,9 +82,14 @@ def read_bill(path, sheet=None):
             section, sec_i = desc, sec_i + 1          # a section title such as "ثانياً: أعمال الخرسانات"
             continue
         no = get("no")
+        key = "%d.%s" % (sec_i, no if no is not None else len(lines) + 1)
+        while key in keys:                       # bills repeat item numbers by mistake; keys must stay unique
+            key += "'"
+        keys.add(key)
         lines.append({
-            "key": "%d.%s" % (sec_i, no if no is not None else len(lines) + 1),
+            "key": key,
             "no": no, "section": section, "desc": desc,
             "unit_raw": unit_raw, "unit": parse_unit(unit_raw), "qty": qty, "row": r,
+            "qty_suspect": str(get("remark") or "").startswith("QTY?"),
         })
     return {"path": path, "sheet": ws.title, "header_row": header_row, "cols": cols, "lines": lines}

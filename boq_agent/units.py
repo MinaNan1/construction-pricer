@@ -7,10 +7,10 @@ M3, M2, M, KG, TON, NO, LS = "m3", "m2", "m", "kg", "ton", "no", "ls"
 _ALIASES = {
     M3: ["م3", "متر مكعب", "m3", "cum", "cu m", "cubic meter", "cubic metre"],
     M2: ["م2", "متر مربع", "متر مسطح", "m2", "sqm", "sq m", "square meter", "square metre"],
-    M: ["م ط", "مط", "م طولي", "متر طولي", "م", "m", "lm", "rm", "linear meter", "linear metre"],
+    M: ["م ط", "مط", "م طولي", "متر طولي", "م", "m", "lm", "rm", "linear meter", "linear metre", "lin m", "linm", "l m", "rmt"],
     KG: ["كجم", "كج", "كيلو", "كيلوجرام", "كغ", "kg", "kgs"],
     TON: ["طن", "ton", "tons", "t", "tonne"],
-    NO: ["عدد", "بالعدد", "قطعه", "no", "nr", "nos", "each", "pcs", "pc", "unit"],
+    NO: ["عدد", "بالعدد", "قطعه", "no", "nr", "nos", "each", "pcs", "pc", "unit", "set", "sets", "pair", "piece", "ea"],
     LS: ["مقطوعيه", "بالمقطوعيه", "ls", "lump sum", "lumpsum", "lot", "item"],
 }
 _LOOKUP = {normalize(a): u for u, names in _ALIASES.items() for a in names}

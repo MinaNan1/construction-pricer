@@ -6,7 +6,7 @@ import streamlit as st
 from boq_agent.pricebook import PriceBook
 from boq_agent.pipeline import price_bill, answer, PRICED, CHECK, ASK
 from boq_agent.memory import Memory
-from boq_agent.units import factor
+from boq_agent.units import factor, UNIT_EN, UNIT_AR
 from boq_agent.writer import write_priced_bill
 from boq_agent.ai import Resolver, read_price_change
 from boq_agent.pdf_reader import read_pdf_bill, write_bill_xlsx
@@ -46,6 +46,7 @@ T = {
     "time": ("Time", "الوقت"), "ai": ("AI calls", "استدعاءات الذكاء الاصطناعي"), "tokens": ("AI tokens", "توكنز الذكاء الاصطناعي"),
     "questions": ("Questions for you", "أسئلة ليك"),
     "which": ("Which item is it?", "البند ده أنهي واحد؟"),
+    "which_unit": ("The line and its unit column disagree. Which unit is right?", "الوصف وعمود الوحدة مختلفين. أنهي وحدة صح؟"),
     "own": ("My own cost per unit (before margin)", "تكلفتي أنا للوحدة (قبل الهامش)"),
     "lump": ("Your price for this lump sum (before margin)", "سعرك للمقطوعية دي (قبل الهامش)"),
     "research": ("🔎 Look up a price online", "🔎 دوّر على سعر أونلاين"),
@@ -220,6 +221,13 @@ if out:
                             st.rerun()
                     else:
                         st.warning(t("research_unit", unit=found["unit"]))
+            if any(n["kind"] == "conflict" for n in r["notes"]) and r.get("unit_desc"):
+                from boq_agent.units import parse_unit
+                units = list(dict.fromkeys(u for u in (parse_unit(r["unit_raw"]), r["unit_desc"]) if u))
+                names = UNIT_AR if st.session_state.lang == "ar" else UNIT_EN
+                guess = parse_unit((r.get("ai") or {}).get("unit_guess"))
+                r["unit_used"] = st.radio(t("which_unit"), units, format_func=lambda u: names.get(u, u), horizontal=True,
+                                          index=units.index(guess) if guess in units else len(units) - 1, key="u_" + r["key"])
             opts, codes = [], []
             if r["unit_used"] != "ls":
                 for c in r["candidates"]:

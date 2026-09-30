@@ -71,13 +71,16 @@ def price_bill(path, pricebook, margin=0.0, add_vat=False, matcher=None, memory=
     for line in bill["lines"]:
         desc_unit = unit_from_description(line["desc"])
         res = dict(line, status=ASK, code=None, item=None, base_price=None, unit_price=None, total=None,
-                   source="", notes=[], candidates=[], unit_used=line["unit"] or desc_unit)
+                   source="", notes=[], candidates=[], unit_used=line["unit"] or desc_unit, unit_desc=desc_unit)
         if line["unit"] and desc_unit and line["unit"] != desc_unit:
             note(res, "conflict",
                  "Unit conflict: the description says per %s but the unit column says %s." % (UNIT_EN[desc_unit], line["unit_raw"]),
                  "تعارض في الوحدة: الوصف بيقول بال%s لكن عمود الوحدة مكتوب فيه %s." % (UNIT_AR[desc_unit], line["unit_raw"]))
         if line["qty"] is None or line["qty"] <= 0:
             note(res, "qty", "No quantity.", "مفيش كمية.")
+        if line.get("qty_suspect"):
+            note(res, "qty_check", "Check the quantity: %s isn't printed like that in the PDF." % "{:,}".format(line["qty"]),
+                 "راجع الكمية: %s مش مكتوبة كده في الـ PDF." % "{:,}".format(line["qty"]))
         conflict = has_note(res, "conflict")
 
         known = memory.recall(line["desc"], res["unit_used"]) if memory and not conflict else None
@@ -99,6 +102,9 @@ def price_bill(path, pricebook, margin=0.0, add_vat=False, matcher=None, memory=
             price_from_code(res, cands[0]["code"], pricebook, uplift)
         results.append(res)
 
+    for r in results:                       # a misread quantity must never look certain
+        if r["status"] == PRICED and has_note(r, "qty_check"):
+            r["status"] = CHECK
     unclear = [r for r in results if r["status"] == ASK and r["candidates"]]
     if unclear and resolver and resolver.available():
         _ai_step(unclear, pricebook, uplift, resolver)
@@ -147,8 +153,13 @@ def _ai_step(unclear, pricebook, uplift, resolver):
                  "مش موجود في قائمة أسعارك لسه: %s" % a.get("reason_ar", ""))
             continue
         note(r, "ai", "AI: %s" % a.get("reason_en", ""), "الذكاء الاصطناعي: %s" % a.get("reason_ar", ""))
+        cand = next((c for c in r["candidates"] if c["code"] == choice), None)
+        if cand and cand.get("kind_clash"):
+            note(r, "kind", "%s is a different kind of work (e.g. demolition vs new work), so it isn't used." % choice,
+                 "%s نوع شغل مختلف (زي التكسير مقابل الشغل الجديد)، فمش هستخدمه." % choice)
+            continue
         if choice and a.get("confidence") in ("high", "medium") and not has_note(r, "conflict"):
-            cov = next(c["coverage"] for c in r["candidates"] if c["code"] == choice)
+            cov = cand["coverage"]
             status = PRICED if a["confidence"] == "high" and cov >= AI_MIN_COVERAGE else CHECK
             price_from_code(r, choice, pricebook, uplift,
                             "AI choice (%s confidence): %s" % (a["confidence"], pricebook.source(choice)), status)
