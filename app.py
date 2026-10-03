@@ -17,7 +17,7 @@ os.makedirs("data/uploads", exist_ok=True)
 os.makedirs("output", exist_ok=True)
 
 T = {
-    "title": ("BOQ pricing agent", "وكيل تسعير المقايسات"),
+    "title": ("Construction Pricer", "Construction Pricer - مُسعِّر المقايسات"),
     "intro": ("Send me a bill of quantities (Excel) and I'll price every line from your price list. "
               "I only ask you about what I can't price.",
               "ابعتلي المقايسة (Excel) وأنا أسعّر كل البنود من قائمة أسعارك، ومش هسألك غير عن اللي مش عارف أسعّره."),
@@ -92,7 +92,7 @@ def load():
     return PriceBook(PRICE_LIST, "data/price_changes.json"), Memory("data/memory.sqlite")
 
 
-st.set_page_config(page_title="BOQ pricing agent", page_icon="📋", layout="wide")
+st.set_page_config(page_title="Construction Pricer", page_icon="📋", layout="wide")
 st.session_state.setdefault("lang", "en")
 with st.sidebar:
     st.session_state.lang = "ar" if st.radio("Language / اللغة", ["English", "العربية"],

@@ -1,5 +1,5 @@
 """Accuracy test: price the demo bills and compare with the answer keys.
-Bill 1: correct item and price per line vs the reviewer's bill. Bill 2: no confident wrong prices."""
+Bill 1: correct item and price per line vs an engineer's priced bill. Bill 2: no confident wrong prices."""
 import openpyxl
 from boq_agent.pricebook import PriceBook
 from boq_agent.pipeline import price_bill, PRICED, CHECK

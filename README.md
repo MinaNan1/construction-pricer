@@ -1,4 +1,4 @@
-# BOQ pricing agent for Egyptian contractors
+# Construction Pricer - a BOQ pricing agent for Egyptian contractors
 
 A contractor uploads a tender's bill of quantities (مقايسة), in Excel or PDF, Arabic or English. The agent prices every line from the contractor's own price list, asks only about the lines it can't price, and returns the contractor's own Excel filled in, ready to submit.
 
@@ -20,14 +20,14 @@ A contractor uploads a tender's bill of quantities (مقايسة), in Excel or P
 | LLM | Gemini 3.1 Flash-Lite (free tier), Groq gpt-oss-120b as the backup |
 | Harness | `boq_agent/pipeline.py`: code first, AI only picks from candidates, confidence rules, owner in the loop |
 | Tools | Excel reader/writer, PDF page finder, formula engine (pycel) that recalculates the price-list workbook |
-| Context | `Price list - steel and metal works.xlsx`: 37 items; material prices from the Ministry of Housing bulletin (Aug 2026) plus a reviewer's cost model (Jul 2026) |
+| Context | `Price list - steel and metal works.xlsx`: 39 items; material prices from the Ministry of Housing bulletin (Aug 2026) plus Egyptian market rates (Jul 2026) reviewed by a practising engineer |
 | Memory | `boq_agent/memory.py`: SQLite of owner answers, plus a log of price changes |
 
 ## Accuracy and cost (`python evaluate.py`)
 
 | Bill | Result | AI use |
 |---|---|---|
-| Bill 1: residential building, 21 lines, answer key = a reviewer's priced bill | **21/21 priced, 0 wrong**, 100% of the bill value | 1 call, ~1.2k tokens |
+| Bill 1: residential building, 21 lines, answer key = a priced bill from a practising engineer | **21/21 priced, 0 wrong**, 100% of the bill value | 1 call, ~1.2k tokens |
 | Bill 2: a real Suez Canal Economic Zone tender, 23 lines | **0 wrong confident prices**; 4 priced, 4 priced-but-check, 15 questions (lump sums and work not in the price list); unit conflict caught | 2 calls, ~10k tokens |
 | Same tender from its PDF | 23/23 lines read with correct quantities | +1 call, ~12k tokens |
 
@@ -51,7 +51,7 @@ Problems the test found, all now fixed:
 4. Demolition and sand backfill were priced as excavation (3 wrong prices). A line is now only matched automatically to an item of the same kind of work (excavation / backfill / demolition / repair, taken from its first verb).
 5. A summary page listing section names was read as items. Lines with no quantity are dropped.
 6. Repeated item numbers broke the questions. Line keys are now unique.
-7. Rebar per kg/ton and general metal works per kg had no item. Added CW-26 and MW-07, built from existing rates and marked for the reviewer.
+7. Rebar per kg/ton and general metal works per kg had no item. Added CW-26 and MW-07, built from existing rates and marked for review.
 
 **Honest limit:** accuracy is high where the price list covers the work, but a 39-item list covers only about 12% of a typical tender's lines. The rest comes back as questions, and every answer is remembered.
 

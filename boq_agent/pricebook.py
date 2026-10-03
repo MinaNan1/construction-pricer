@@ -43,7 +43,7 @@ class PriceBook:
 
     def source(self, code):
         if code.startswith("CW"):
-            return "Price list %s (reviewer's cost model, July 2026)" % code
+            return "Price list %s (Egyptian market cost model, July 2026)" % code
         return "Price list %s (Ministry of Housing bulletin Aug 2026 + rates)" % code
 
     def inputs(self):
