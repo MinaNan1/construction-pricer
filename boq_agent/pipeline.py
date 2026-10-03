@@ -44,6 +44,31 @@ def price_from_owner(res, cost, uplift, source):
     res["total"] = round(res["unit_price"] * res["qty"], 2) if res["qty"] else None
 
 
+DOMINANT_SHARE = 0.6    # share of the bill one line may reach before it is questioned
+DOMINANT_GAP = 10       # or this many times the next biggest line
+
+
+def flag_dominant(results):
+    """A single line that swamps the rest of the bill nearly always means the wrong item or the wrong unit
+    (an elevator priced per dowel). Never leave such a line looking certain, whoever chose it - code, AI,
+    a remembered answer or the owner."""
+    priced = sorted([r for r in results if r["total"]], key=lambda r: -r["total"])
+    if len(priced) < 2:
+        return
+    total = sum(r["total"] for r in priced)
+    top, second = priced[0], priced[1]
+    share = top["total"] / total if total else 0
+    gap = top["total"] / second["total"] if second["total"] else float("inf")
+    if (share > DOMINANT_SHARE or gap > DOMINANT_GAP) and not has_note(top, "dominates"):
+        note(top, "dominates",
+             "This one line is %.0f%% of the bill and %.0fx the next biggest - check the item and the unit."
+             % (share * 100, gap),
+             "البند ده لوحده %.0f%% من المقايسة و%.0f ضعف اللي بعده - راجع البند والوحدة."
+             % (share * 100, gap))
+        if top["status"] == PRICED:
+            top["status"] = CHECK
+
+
 def summarize(results, margin, add_vat, ai=None):
     s = {
         "lines": len(results),
@@ -113,6 +138,7 @@ def price_bill(path, pricebook, margin=0.0, add_vat=False, matcher=None, memory=
             note(r, "unsure", "Not sure which price-list item this is. Closest: %s."
                  % ", ".join(c["code"] for c in r["candidates"][:3]),
                  "مش متأكد البند ده أنهي بند في قائمة الأسعار. الأقرب: %s." % "، ".join(c["code"] for c in r["candidates"][:3]))
+    flag_dominant(results)
     return {"bill": bill, "results": results, "summary": summarize(results, margin, add_vat, resolver),
             "margin": margin, "vat": add_vat, "resolver": resolver}
 
@@ -179,5 +205,6 @@ def answer(out, key, pricebook, memory=None, code=None, cost=None, source=None):
         price_from_owner(res, float(cost), uplift, source or "Your price")
     if memory:
         memory.remember(res["desc"], res["unit_used"], code=code, price=None if code else float(cost))
+    flag_dominant(out["results"])
     out["summary"] = summarize(out["results"], out["margin"], out["vat"], out.get("resolver"))
     return True
