@@ -13,6 +13,7 @@ from boq_agent.pdf_reader import read_pdf_bill, write_bill_xlsx
 from boq_agent.research import research_price
 
 PRICE_LIST = "Price list - steel and metal works.xlsx"
+MIN_OPTION_SCORE = 0.15   # below this the item barely resembles the line, so it is not offered
 os.makedirs("data/uploads", exist_ok=True)
 os.makedirs("output", exist_ok=True)
 
@@ -47,9 +48,8 @@ T = {
     "questions": ("Questions for you", "أسئلة ليك"),
     "which": ("Which item is it?", "البند ده أنهي واحد؟"),
     "which_unit": ("The line and its unit column disagree. Which unit is right?", "الوصف وعمود الوحدة مختلفين. أنهي وحدة صح؟"),
-    "show_closest": ("This work isn't in your price list - show the closest items anyway",
-                     "الشغل ده مش في قائمة أسعارك - اعرض أقرب البنود برضه"),
-    "nothing_close": ("Nothing in your price list uses this unit.", "مفيش حاجة في قائمة أسعارك بالوحدة دي."),
+    "nothing_close": ("Nothing in your price list is close to this work - give me your price.",
+                      "مفيش حاجة في قائمة أسعارك قريبة من الشغل ده - قولّي سعرك."),
     "own": ("My own cost per unit (before margin)", "تكلفتي أنا للوحدة (قبل الهامش)"),
     "lump": ("Your price for this lump sum (before margin)", "سعرك للمقطوعية دي (قبل الهامش)"),
     "research": ("🔎 Look up a price online", "🔎 دوّر على سعر أونلاين"),
@@ -231,9 +231,10 @@ if out:
                 guess = parse_unit((r.get("ai") or {}).get("unit_guess"))
                 r["unit_used"] = st.radio(t("which_unit"), units, format_func=lambda u: names.get(u, u), horizontal=True,
                                           index=units.index(guess) if guess in units else len(units) - 1, key="u_" + r["key"])
-            # When the agent has already judged that this work is not in the price list, offering items anyway
-            # produces nonsense questions (an elevator for steel dowels). Ask for the price instead, and keep
-            # the closest items folded away in case the judgement was wrong.
+            # Always offer the closest items, but drop the ones that cannot be right: an item whose price would
+            # make this single line dwarf the rest of the bill (an elevator priced per steel dowel), or one that
+            # barely matches the wording at all. When the work isn't in the price list, "my own price" is the
+            # default, but the owner can still pick an item.
             not_in_list = any(n["kind"] == "not_in_list" for n in r["notes"])
             priced_so_far = sum(x["total"] or 0 for x in out["results"] if x["key"] != r["key"] and x["total"])
 
@@ -246,38 +247,30 @@ if out:
                         continue
                     each = pb.price(c["code"]) * f
                     line_total = each * (r["qty"] or 0)
-                    # a single line that dwarfs everything else priced is almost always a mis-pick
-                    warn = " ⚠️" if priced_so_far and line_total > priced_so_far else ""
-                    o.append("%s - %s  (%s/%s → %s)%s" % (c["code"], item["name_ar"], "{:,.0f}".format(each),
-                                                          r["unit_raw"] or "", "{:,.0f}".format(line_total), warn))
+                    if priced_so_far and line_total > priced_so_far:
+                        continue               # this one line would outweigh everything else priced
+                    if c["score"] < MIN_OPTION_SCORE:
+                        continue               # barely resembles the line at all
+                    o.append("%s - %s  (%s/%s → %s)" % (c["code"], item["name_ar"], "{:,.0f}".format(each),
+                                                        r["unit_raw"] or "", "{:,.0f}".format(line_total)))
                     c_.append(c["code"])
                 return o, c_
 
             chosen_code, cost = None, None
-            if r["unit_used"] == "ls" or not_in_list:
-                # The agent has no item for this work, so the only normal answer is the owner's own price.
-                # Price-list items stay behind a closed expander and must be picked deliberately.
+            opts, codes = ([], []) if r["unit_used"] == "ls" else build_options()
+            ai = r.get("ai") or {}
+            confident = not not_in_list and (r["status"] == CHECK or (ai.get("confidence") in ("high", "medium")
+                                                                      and codes and ai.get("choice") == codes[0]))
+            if not opts:
                 cost = st.number_input(t("lump") if r["unit_used"] == "ls" else t("own"),
                                        min_value=0.0, step=10.0, key="p" + r["key"])
-                if not_in_list and r["unit_used"] != "ls":
-                    with st.expander(t("show_closest")):
-                        opts, codes = build_options()
-                        if opts:
-                            pick = st.radio(t("which"), range(len(opts)), format_func=lambda i: opts[i],
-                                            index=None, key="c" + r["key"])
-                            if pick is not None:
-                                chosen_code = codes[pick]
-                        else:
-                            st.caption(t("nothing_close"))
+                if r["unit_used"] != "ls" and r["candidates"]:
+                    st.caption(t("nothing_close"))
             else:
-                opts, codes = build_options()
-                ai = r.get("ai") or {}
-                confident = r["status"] == CHECK or (ai.get("confidence") in ("high", "medium")
-                                                     and codes and ai.get("choice") == codes[0])
                 opts.append(t("own"))
                 codes.append("own")
                 choice = st.radio(t("which"), range(len(opts)), format_func=lambda i: opts[i], key="c" + r["key"],
-                                  index=0 if confident else len(opts) - 1) if len(opts) > 1 else 0
+                                  index=0 if confident else len(opts) - 1)
                 if codes[choice] == "own":
                     cost = st.number_input(t("own"), min_value=0.0, step=10.0, key="p" + r["key"],
                                            label_visibility="collapsed" if len(opts) > 1 else "visible")
