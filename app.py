@@ -253,29 +253,41 @@ if out:
                     c_.append(c["code"])
                 return o, c_
 
-            opts, codes = ([], []) if (r["unit_used"] == "ls" or not_in_list) else build_options()
-            if not_in_list and r["unit_used"] != "ls":
-                with st.expander(t("show_closest")):
-                    more_opts, more_codes = build_options()
-                    opts, codes = more_opts, more_codes
-                    if not opts:
-                        st.caption(t("nothing_close"))
-            ai = r.get("ai") or {}
-            confident = not not_in_list and (r["status"] == CHECK or (ai.get("confidence") in ("high", "medium")
-                                                                      and codes and ai.get("choice") == codes[0]))
-            opts.append(t("own") if r["unit_used"] != "ls" else t("lump"))
-            codes.append("own")
-            choice = st.radio(t("which"), range(len(opts)), format_func=lambda i: opts[i], key="c" + r["key"],
-                              index=0 if confident else len(opts) - 1) if len(opts) > 1 else 0
-            cost = None
-            if codes[choice] == "own":
-                cost = st.number_input(opts[-1], min_value=0.0, step=10.0, key="p" + r["key"],
-                                       label_visibility="collapsed" if len(opts) > 1 else "visible")
-            if st.button(t("save"), key="s" + r["key"]):
+            chosen_code, cost = None, None
+            if r["unit_used"] == "ls" or not_in_list:
+                # The agent has no item for this work, so the only normal answer is the owner's own price.
+                # Price-list items stay behind a closed expander and must be picked deliberately.
+                cost = st.number_input(t("lump") if r["unit_used"] == "ls" else t("own"),
+                                       min_value=0.0, step=10.0, key="p" + r["key"])
+                if not_in_list and r["unit_used"] != "ls":
+                    with st.expander(t("show_closest")):
+                        opts, codes = build_options()
+                        if opts:
+                            pick = st.radio(t("which"), range(len(opts)), format_func=lambda i: opts[i],
+                                            index=None, key="c" + r["key"])
+                            if pick is not None:
+                                chosen_code = codes[pick]
+                        else:
+                            st.caption(t("nothing_close"))
+            else:
+                opts, codes = build_options()
+                ai = r.get("ai") or {}
+                confident = r["status"] == CHECK or (ai.get("confidence") in ("high", "medium")
+                                                     and codes and ai.get("choice") == codes[0])
+                opts.append(t("own"))
+                codes.append("own")
+                choice = st.radio(t("which"), range(len(opts)), format_func=lambda i: opts[i], key="c" + r["key"],
+                                  index=0 if confident else len(opts) - 1) if len(opts) > 1 else 0
                 if codes[choice] == "own":
-                    answer(out, r["key"], pb, mem, cost=cost)
+                    cost = st.number_input(t("own"), min_value=0.0, step=10.0, key="p" + r["key"],
+                                           label_visibility="collapsed" if len(opts) > 1 else "visible")
                 else:
-                    answer(out, r["key"], pb, mem, code=codes[choice])
+                    chosen_code = codes[choice]
+            if st.button(t("save"), key="s" + r["key"]):
+                if chosen_code:
+                    answer(out, r["key"], pb, mem, code=chosen_code)
+                else:
+                    answer(out, r["key"], pb, mem, cost=cost)
                 st.rerun()
 
     st.subheader(t("lines"))
