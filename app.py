@@ -47,6 +47,9 @@ T = {
     "questions": ("Questions for you", "أسئلة ليك"),
     "which": ("Which item is it?", "البند ده أنهي واحد؟"),
     "which_unit": ("The line and its unit column disagree. Which unit is right?", "الوصف وعمود الوحدة مختلفين. أنهي وحدة صح؟"),
+    "show_closest": ("This work isn't in your price list - show the closest items anyway",
+                     "الشغل ده مش في قائمة أسعارك - اعرض أقرب البنود برضه"),
+    "nothing_close": ("Nothing in your price list uses this unit.", "مفيش حاجة في قائمة أسعارك بالوحدة دي."),
     "own": ("My own cost per unit (before margin)", "تكلفتي أنا للوحدة (قبل الهامش)"),
     "lump": ("Your price for this lump sum (before margin)", "سعرك للمقطوعية دي (قبل الهامش)"),
     "research": ("🔎 Look up a price online", "🔎 دوّر على سعر أونلاين"),
@@ -228,24 +231,46 @@ if out:
                 guess = parse_unit((r.get("ai") or {}).get("unit_guess"))
                 r["unit_used"] = st.radio(t("which_unit"), units, format_func=lambda u: names.get(u, u), horizontal=True,
                                           index=units.index(guess) if guess in units else len(units) - 1, key="u_" + r["key"])
-            opts, codes = [], []
-            if r["unit_used"] != "ls":
+            # When the agent has already judged that this work is not in the price list, offering items anyway
+            # produces nonsense questions (an elevator for steel dowels). Ask for the price instead, and keep
+            # the closest items folded away in case the judgement was wrong.
+            not_in_list = any(n["kind"] == "not_in_list" for n in r["notes"])
+            priced_so_far = sum(x["total"] or 0 for x in out["results"] if x["key"] != r["key"] and x["total"])
+
+            def build_options():
+                o, c_ = [], []
                 for c in r["candidates"]:
                     item = pb.by_code[c["code"]]
                     f, _ = factor(r["unit_used"], item["unit"], r["desc"])
-                    if f:                      # only items whose units fit this line
-                        opts.append("%s - %s (%s)" % (c["code"], item["name_ar"], "{:,.2f}".format(pb.price(c["code"]) * f)))
-                        codes.append(c["code"])
+                    if not f:                  # only items whose units fit this line
+                        continue
+                    each = pb.price(c["code"]) * f
+                    line_total = each * (r["qty"] or 0)
+                    # a single line that dwarfs everything else priced is almost always a mis-pick
+                    warn = " ⚠️" if priced_so_far and line_total > priced_so_far else ""
+                    o.append("%s - %s  (%s/%s → %s)%s" % (c["code"], item["name_ar"], "{:,.0f}".format(each),
+                                                          r["unit_raw"] or "", "{:,.0f}".format(line_total), warn))
+                    c_.append(c["code"])
+                return o, c_
+
+            opts, codes = ([], []) if (r["unit_used"] == "ls" or not_in_list) else build_options()
+            if not_in_list and r["unit_used"] != "ls":
+                with st.expander(t("show_closest")):
+                    more_opts, more_codes = build_options()
+                    opts, codes = more_opts, more_codes
+                    if not opts:
+                        st.caption(t("nothing_close"))
             ai = r.get("ai") or {}
-            confident = r["status"] == CHECK or (ai.get("confidence") in ("high", "medium") and codes
-                                                  and ai.get("choice") == codes[0])
+            confident = not not_in_list and (r["status"] == CHECK or (ai.get("confidence") in ("high", "medium")
+                                                                      and codes and ai.get("choice") == codes[0]))
             opts.append(t("own") if r["unit_used"] != "ls" else t("lump"))
             codes.append("own")
             choice = st.radio(t("which"), range(len(opts)), format_func=lambda i: opts[i], key="c" + r["key"],
                               index=0 if confident else len(opts) - 1) if len(opts) > 1 else 0
             cost = None
             if codes[choice] == "own":
-                cost = st.number_input(opts[-1], min_value=0.0, step=10.0, key="p" + r["key"])
+                cost = st.number_input(opts[-1], min_value=0.0, step=10.0, key="p" + r["key"],
+                                       label_visibility="collapsed" if len(opts) > 1 else "visible")
             if st.button(t("save"), key="s" + r["key"]):
                 if codes[choice] == "own":
                     answer(out, r["key"], pb, mem, cost=cost)
